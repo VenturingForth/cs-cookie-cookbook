@@ -1,2 +1,73 @@
-﻿// See https://aka.ms/new-console-template for more information
-Console.WriteLine("Hello, World!");
+﻿
+var cookiesRecipeApp = new CookiesRecipeApp(
+    new RecipesRepository(),
+    new RecipesConsoleUserInteraction());
+
+cookiesRecipeApp.Run();
+
+public class CookiesRecipeApp
+{
+    private readonly IRecipesRepository _recipesRepository;
+    private readonly IRecipesUserInteraction _recipesUserInteraction;
+
+    public CookiesRecipeApp(
+        IRecipesRepository recipesRepository,
+        IRecipesUserInteraction recipesUserInteraction
+        )
+    {
+        _recipesRepository = recipesRepository;
+        _recipesUserInteraction = recipesUserInteraction;
+    }
+    public void Run()
+    {
+        var allRecipes = _recipesRepository.Read(filePath);
+        _recipesUserInteraction.PrintExistingRecipes(allRecipes);
+
+        _recipesUserInteraction.PromptToCreateRecipe();
+
+        var ingredients = _recipesUserInteraction.ReadIngredientsFromUser();
+
+        if(ingredients.Count > 0)
+        {
+            var recipes = new CookiesRecipeApp(ingredients);
+            allRecipes.Add(recipe);
+            _recipesRepository.Write(filePath, allRecipes);
+
+            _recipesUserInteraction.showMessage("Recipe added:");
+            _recipesUserInteraction.showMessage(recipe.ToString());
+        }
+        else
+        {
+            _recipesUserInteraction.ShowMessage(
+                @"No ingredients have been selected.
+                Recipe will not be saved"
+            );
+        }
+
+        _recipesUserInteraction.Exit();
+    }
+}
+public interface IRecipesUserInteraction
+{
+    void ShowMessage( string message );
+    void Exit();
+}
+public class RecipesConsoleUserInteraction : IRecipesUserInteraction
+{
+    public void ShowMessage(string message)
+    {
+        Console.WriteLine(message);
+    }
+    public void Exit()
+    {
+        Console.WriteLine("Press any key to close.");
+        Console.ReadKey();
+    }
+}
+public interface IRecipesRepository
+{
+
+}
+public class RecipesRepository: IRecipesRepository
+{
+}
