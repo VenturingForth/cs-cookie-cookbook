@@ -1,10 +1,11 @@
 ﻿
 using CookieCookbook.Recipes;
 using cs_cookie_cookbook.Recipes.Ingredients;
+var ingredientsRegister = new IngredientsRegister();
 
 var cookiesRecipeApp = new CookiesRecipeApp(
-    new RecipesRepository(),
-    new RecipesConsoleUserInteraction(new IngredientsRegister()));
+    new RecipesRepository(new StringsTextualRepository(), ingredientsRegister),
+    new RecipesConsoleUserInteraction(ingredientsRegister));
 
 cookiesRecipeApp.Run("recipes.txt");
 
@@ -34,7 +35,7 @@ public class CookiesRecipeApp
         {
             var recipe = new Recipe(ingredients);
             allRecipes.Add(recipe);
-            //_recipesRepository.Write(filePath, allRecipes);
+            _recipesRepository.Write(filePath, allRecipes);
 
             _recipesUserInteraction.ShowMessage("Recipe added:");
             _recipesUserInteraction.ShowMessage(recipe.ToString());
@@ -52,15 +53,23 @@ public class CookiesRecipeApp
 }
 public interface IRecipesUserInteraction
 {
-    void ShowMessage( string message );
+    void ShowMessage(string message);
     void Exit();
     void PrintExistingRecipes(IEnumerable<Recipe> allRecipes);
     void PromptToCreateRecipe();
     IEnumerable<Ingredient> ReadIngredientsFromUser();
 }
-public class IngredientsRegister
+
+public interface IIngredientsRegister
 {
-    public IEnumerable<Ingredient> All {  get; } = new List<Ingredient>
+    IEnumerable<Ingredient> All { get; }
+
+    Ingredient GetById(int id);
+}
+
+public class IngredientsRegister : IIngredientsRegister
+{
+    public IEnumerable<Ingredient> All { get; } = new List<Ingredient>
     {
         new WheatFlour(),
         new CoconutFlour(),
@@ -74,9 +83,9 @@ public class IngredientsRegister
 
     public Ingredient GetById(int id)
     {
-        foreach(var ingredient in All)
+        foreach (var ingredient in All)
         {
-            if ( ingredient.Id == id )
+            if (ingredient.Id == id)
             {
                 return ingredient;
             }
@@ -87,8 +96,8 @@ public class IngredientsRegister
 }
 public class RecipesConsoleUserInteraction : IRecipesUserInteraction
 {
-    private readonly IngredientsRegister _ingredientsRegister;
-    public RecipesConsoleUserInteraction(IngredientsRegister ingredientsRegister)
+    private readonly IIngredientsRegister _ingredientsRegister;
+    public RecipesConsoleUserInteraction(IIngredientsRegister ingredientsRegister)
     {
         _ingredientsRegister = ingredientsRegister;
     }
@@ -104,11 +113,11 @@ public class RecipesConsoleUserInteraction : IRecipesUserInteraction
 
     public void PrintExistingRecipes(IEnumerable<Recipe> allRecipes)
     {
-        if(allRecipes.Count() > 0)
+        if (allRecipes.Count() > 0)
         {
             Console.WriteLine($"Existing recipes are: {Environment.NewLine}");
             int counter = 1;
-            foreach(var recipe in allRecipes)
+            foreach (var recipe in allRecipes)
             {
                 Console.WriteLine($"*****{counter}*****");
                 Console.WriteLine(recipe);
@@ -122,7 +131,7 @@ public class RecipesConsoleUserInteraction : IRecipesUserInteraction
     {
         Console.WriteLine("Create a new cookie recipe! " +
             "Available ingredients are:");
-        foreach(var ingredient in _ingredientsRegister.All)
+        foreach (var ingredient in _ingredientsRegister.All)
         {
             Console.WriteLine(ingredient);
         }
@@ -133,14 +142,14 @@ public class RecipesConsoleUserInteraction : IRecipesUserInteraction
         bool shallStop = false;
         var ingredients = new List<Ingredient>();
 
-        while(!shallStop)
+        while (!shallStop)
         {
             Console.WriteLine("Add any ingredient by its ID, " +
                 "or type anything else if finished.");
 
             var userInput = Console.ReadLine();
-            
-            if(int.TryParse(userInput, out int id))
+
+            if (int.TryParse(userInput, out int id))
             {
                 var selectedIngredient = _ingredientsRegister.GetById(id);
                 if (selectedIngredient is not null)
@@ -160,25 +169,86 @@ public class RecipesConsoleUserInteraction : IRecipesUserInteraction
 public interface IRecipesRepository
 {
     List<Recipe> Read(string filePath);
+    void Write(string filePath, List<Recipe> allRecipes);
 }
-public class RecipesRepository: IRecipesRepository
+public class RecipesRepository : IRecipesRepository
 {
+    private readonly IStringsRepository _stringsRepository;
+    private readonly IIngredientsRegister _ingredientsRegister;
+    private const string Separator = ",";
+
+    public RecipesRepository(IStringsRepository stringsRepository, IIngredientsRegister ingredientsRegister)
+    {
+        _stringsRepository = stringsRepository;
+        _ingredientsRegister = ingredientsRegister;
+    }
+
     public List<Recipe> Read(string filePath)
     {
-        return new List<Recipe>
+        List<string> recipesFromFile = _stringsRepository.Read(filePath);
+        var recipes = new List<Recipe>();
+
+        foreach (var recipeFromFile in recipesFromFile)
         {
-            new Recipe(new List<Ingredient>
+            var recipe = RecipeFromString(recipeFromFile);
+            recipes.Add(recipe);
+        }
+
+        return recipes;
+    }
+
+    private Recipe RecipeFromString(string recipeFromFile)
+    {
+        var textualIds = recipeFromFile.Split(Separator);
+        var ingredients = new List<Ingredient>();
+
+        foreach (var textualId in textualIds)
+        {
+            var id = int.Parse(textualId);
+            var ingredient = _ingredientsRegister.GetById(id);
+            ingredients.Add(ingredient);
+        }
+
+        return new Recipe(ingredients);
+    }
+
+    public void Write(string filePath, List<Recipe> allRecipes)
+    {
+        var recipesAsStrings = new List<string>();
+        foreach (var recipe in allRecipes)
+        {
+            var allIds = new List<int>();
+            foreach (var ingredient in recipe.Ingredients)
             {
-                new WheatFlour(),
-                new Butter(),
-                new Sugar()
-            }),
-            new Recipe(new List<Ingredient>
-            {
-                new CocoaPowder(),
-                new CoconutFlour(),
-                new Cinnamon()
-            })
-        };
+                allIds.Add(ingredient.Id);
+            }
+            recipesAsStrings.Add(string.Join(Separator, allIds));
+        }
+        _stringsRepository.Write(filePath, recipesAsStrings);
+    }
+}
+
+public interface IStringsRepository
+{
+    List<string> Read(string filePath);
+    void Write(string filePath, List<string> strings);
+}
+
+public class StringsTextualRepository : IStringsRepository
+{
+    private static readonly string Separator = Environment.NewLine;
+    public List<string> Read(string filePath)
+    {
+        if (File.Exists(filePath))
+        {
+            var fileContents = File.ReadAllText(filePath);
+            return fileContents.Split(Separator).ToList();
+        }
+        
+        return new List<string>();
+    }
+    public void Write(string filePath, List<string> strings)
+    {
+        File.WriteAllText(filePath, string.Join(Separator, strings));
     }
 }
